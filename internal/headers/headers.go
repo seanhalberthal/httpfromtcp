@@ -31,7 +31,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 		// Check if we've reached end of headers (empty line)
 		if len(stringData[bytesProcessed:]) >= 2 && stringData[bytesProcessed:bytesProcessed+2] == "\r\n" {
-			return bytesProcessed + 2, true, nil // End of headers
+			return bytesProcessed, true, nil // End of headers
 		}
 
 		// Find the end of the current header line in the remaining data
@@ -84,6 +84,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 		// Update bytesProcessed to move past this header line (including \r\n)
 		bytesProcessed += endOfLine + 2
+		return endOfLine + 2, false, nil
 	}
 }
 
