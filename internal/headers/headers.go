@@ -100,3 +100,14 @@ func validateKey(key string) error {
 	}
 	return nil
 }
+
+// Get returns the value a header by its key, case-insensitive
+func (h Headers) Get(key string) string {
+	lowerKey := strings.ToLower(key)
+	for k, v := range h {
+		if strings.ToLower(k) == lowerKey {
+			return v
+		}
+	}
+	return ""
+}

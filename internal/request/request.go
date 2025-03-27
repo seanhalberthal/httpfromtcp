@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"httpfromtcp/internal/headers"
 	"io"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -12,6 +13,7 @@ import (
 const (
 	requestStateParsingLine = iota
 	requestStateParsingHeaders
+	requestStateParsingBody
 	requestStateDone
 )
 
@@ -20,6 +22,7 @@ type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
 	state       int
+	Body        []byte
 }
 
 // RequestLine defines data structure for the start-line (RFC 9110)
@@ -78,6 +81,20 @@ func RequestFromReader(r io.Reader) (*Request, error) {
 	if req.state != requestStateDone {
 		return nil, fmt.Errorf("incomplete request")
 	}
+
+	if req.state == requestStateParsingBody {
+		contentLengthStr := string(req.Headers.Get("Content-Length"))
+		if contentLengthStr != "" {
+			contentLength, err := strconv.Atoi(contentLengthStr)
+			if err != nil {
+				return nil, err
+			}
+			if len(req.Body) < contentLength {
+				return nil, fmt.Errorf("body too short")
+			}
+		}
+	}
+
 	return req, nil
 }
 
@@ -152,17 +169,58 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		r.state = requestStateParsingHeaders
 		return endOfLine + 2, nil // + 2 for "\r\n"
 
+	// Parse the headers using Headers.Parse
 	case requestStateParsingHeaders:
 		n, done, err := r.Headers.Parse(data)
 		if err != nil {
 			return 0, err
 		}
 
+		// Set state to requestStateParsingBody
 		if done {
-			r.state = requestStateDone
+			r.state = requestStateParsingBody
 		}
 
 		return n, nil
+
+	case requestStateParsingBody:
+		// Get Content-Length header
+		contentLengthStr := r.Headers.Get("Content-Length")
+
+		// Check if Content-Length is empty
+		if contentLengthStr == "" {
+			r.state = requestStateDone
+			return 0, nil
+		}
+
+		// Parse Content-Length to int
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		if err != nil {
+			return 0, fmt.Errorf("invalid content length: %s", contentLengthStr)
+		}
+
+		// If Content-Length == 0 -> no body to parse
+		if contentLength == 0 {
+			r.state = requestStateDone
+			return 0, nil
+		}
+
+		// Determine how many bytes we can process from current data
+		bytesToRead := len(data)
+		if bytesToRead > contentLength-len(r.Body) {
+			bytesToRead = contentLength - len(r.Body)
+		}
+
+		// Append to the body
+		r.Body = append(r.Body, data[:bytesToRead]...)
+
+		// Check if we've read the entire body
+		if len(r.Body) == contentLength {
+			r.state = requestStateDone
+		}
+
+		return bytesToRead, nil
+
 	default:
 		break
 	}

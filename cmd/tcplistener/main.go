@@ -57,5 +57,8 @@ func main() {
 		for k, v := range req.Headers {
 			fmt.Printf("- %s: %s\n", k, v)
 		}
+		// Print the body of the request to the terminal
+		fmt.Printf("Body:\n")
+		fmt.Printf("%s\n", string(req.Body))
 	}
 }
