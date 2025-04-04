@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/server"
 	"io"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
@@ -36,23 +38,24 @@ func main() {
 }
 
 func testHandler(w io.Writer, req *request.Request) *server.HandlerError {
-	switch req.RequestLine.RequestTarget {
-	case "/yourproblem":
+	path := req.RequestLine.RequestTarget
+
+	if strings.HasSuffix(path, "/yourproblem") {
 		return &server.HandlerError{
 			StatusCode: 400,
 			Message:    "Your problem is not my problem\n",
 		}
-	case "/myproblem":
+	} else if strings.HasSuffix(path, "/myproblem") {
 		return &server.HandlerError{
 			StatusCode: 500,
 			Message:    "Woopsie, my bad\n",
 		}
-	default:
-		_, err := io.WriteString(w, "All good, frfr\n")
+	} else {
+		_, err := w.Write([]byte("All good, frfr\n"))
 		if err != nil {
 			return &server.HandlerError{
 				StatusCode: 500,
-				Message:    "Error writing response\n",
+				Message:    fmt.Sprintf("Error writing response: %v", err),
 			}
 		}
 		return nil
